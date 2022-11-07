@@ -42,7 +42,7 @@ Organizations:
                 Rule: "OR('OrdererMSP.admin')"
 
         OrdererEndpoints:
-            - ordere1r.example.com:7050
+            - orderer.example.com:7050
             - orderer2.example.com:8050
             - orderer3.example.com:9050
 
