@@ -8,13 +8,16 @@ package main
 
 import (
 	"fmt"
-
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-protos-go/peer"
+	"strconv"
+	"sync"
 )
 
 // SimpleAsset implements a simple chaincode to manage an asset
 type SimpleAsset struct {
+	lock  sync.Mutex
+	nonce uint64
 }
 
 // Init is called during chaincode instantiation to initialize any
@@ -26,11 +29,14 @@ func (t *SimpleAsset) Init(stub shim.ChaincodeStubInterface) peer.Response {
 	if len(args) != 2 {
 		return shim.Error("Incorrect arguments. Expecting a key and a value")
 	}
-
+	err := stub.PutState("nonce", []byte(fmt.Sprintf("%d", 0)))
+	if err != nil {
+		return shim.Success([]byte(fmt.Sprintf("failed to init nonce")))
+	}
 	// Set up any variables or assets here by calling stub.PutState()
-
+	t.nonce = 0
 	// We store the key and the value on the ledger
-	err := stub.PutState(args[0], []byte(args[1]))
+	err = stub.PutState("nonce", []byte(fmt.Sprintf("%d", t.nonce)))
 	if err != nil {
 		return shim.Error(fmt.Sprintf("Failed to create asset: %s", args[0]))
 	}
@@ -47,9 +53,30 @@ func (t *SimpleAsset) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 	var result string
 	var err error
 	if fn == "set" {
-		result, err = set(stub, args)
+		nonceBytes, err := stub.GetState("nonce")
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		nonceStr := "0"
+		if len(nonceBytes) != 0 {
+			nonceStr = string(nonceBytes)
+		}
+
+		nonce, err := strconv.ParseUint(string(nonceStr), 10, 64)
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		t.lock.Lock()
+		defer t.lock.Unlock()
+		if t.nonce < nonce {
+			return shim.Error("double spent")
+		}
+		t.nonce++
+		result, err = set(stub, args, nonce)
 	} else { // assume 'get' even if fn is nil
+
 		result, err = get(stub, args)
+
 	}
 	if err != nil {
 		return shim.Error(err.Error())
@@ -61,7 +88,7 @@ func (t *SimpleAsset) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 
 // Set stores the asset (both key and value) on the ledger. If the key exists,
 // it will override the value with the new one
-func set(stub shim.ChaincodeStubInterface, args []string) (string, error) {
+func set(stub shim.ChaincodeStubInterface, args []string, nonce uint64) (string, error) {
 	if len(args) != 2 {
 		return "", fmt.Errorf("Incorrect arguments. Expecting a key and a value")
 	}
@@ -69,6 +96,10 @@ func set(stub shim.ChaincodeStubInterface, args []string) (string, error) {
 	err := stub.PutState(args[0], []byte(args[1]))
 	if err != nil {
 		return "", fmt.Errorf("Failed to set asset: %s", args[0])
+	}
+	err = stub.PutState("nonce", []byte(fmt.Sprintf("%d", nonce)))
+	if err != nil {
+		return "", fmt.Errorf("Failed to set nonce: %s", args[0])
 	}
 	return args[1], nil
 }
