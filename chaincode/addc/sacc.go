@@ -11,9 +11,11 @@ import (
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/sirupsen/logrus"
+	"math/rand"
 	"net/http"
 	"sort"
 	"strconv"
+	"time"
 )
 
 // SimpleAsset implements a simple chaincode to manage an asset
@@ -26,6 +28,7 @@ type SimpleAsset struct {
 // or to migrate data.
 func (t *SimpleAsset) Init(shim.ChaincodeStubInterface) peer.Response {
 	t.token = map[string]uint64{}
+
 	return shim.Success(nil)
 }
 
@@ -33,6 +36,10 @@ func (t *SimpleAsset) Init(shim.ChaincodeStubInterface) peer.Response {
 // either a 'get' or a 'set' on the asset created by Init function. The Set
 // method may create a new asset by specifying a new key-value pair.
 func (t *SimpleAsset) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
+
+	if t.token == nil {
+		t.token = map[string]uint64{}
+	}
 	// Extract the function and args from the transaction proposal
 	fn, args := stub.GetFunctionAndParameters()
 
@@ -46,14 +53,16 @@ func (t *SimpleAsset) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 			return shim.Error(fmt.Sprintf("user is not found, %v", err))
 		}
 		if len(vv) == 0 {
-			return shim.Error("user is not found")
+			t.token[args[0]] = 0
+		} else {
+			v, err = strconv.ParseUint(string(vv), 10, 64)
+			if err != nil {
+				logger.Error(err)
+				return shim.Error(err.Error())
+			}
+			t.token[args[0]] = v
 		}
-		v, err = strconv.ParseUint(string(vv), 10, 64)
-		if err != nil {
-			logger.Error(err)
-			return shim.Error(err.Error())
-		}
-		t.token[args[0]] = v
+
 	}
 
 	if fn == "add" {
@@ -61,8 +70,8 @@ func (t *SimpleAsset) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 		if err != nil {
 			return shim.Error(err.Error())
 		}
-	} else if fn == "addRand" {
-		result, err = addRand(stub, args[0], v)
+	} else if fn == "random" {
+		result, err = random(stub, args[0], v)
 		if err != nil {
 			return shim.Error(err.Error())
 		}
@@ -85,11 +94,18 @@ func add(stub shim.ChaincodeStubInterface, userID string, token uint64) (string,
 	return fmt.Sprintf("%v", token), nil
 }
 
+func random(stub shim.ChaincodeStubInterface, userID string, token uint64) (string, error) {
+
+	rand.Seed(time.Now().Unix())
+
+	return fmt.Sprintf("%v", rand.Uint64()), nil
+}
+
 func addRand(stub shim.ChaincodeStubInterface, userID string, token uint64) (string, error) {
 	var res []uint64
-	for i := 1; i < 5; i++ {
-		cc := fmt.Sprintf("addRand%d", i)
-		resp := stub.InvokeChaincode(cc, [][]byte{[]byte(userID)}, "mychannel")
+	for i := 1; i < 3; i++ {
+		cc := fmt.Sprintf("addc%d", i)
+		resp := stub.InvokeChaincode(cc, [][]byte{[]byte("random"), []byte(userID)}, "mychannel")
 		if resp.Status != http.StatusOK {
 			logger.Error("failed to invoke chaincode [%d], %v", cc, resp.Message)
 			continue

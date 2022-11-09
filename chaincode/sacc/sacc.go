@@ -68,10 +68,10 @@ func (t *SimpleAsset) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 		}
 		t.lock.Lock()
 		defer t.lock.Unlock()
-		if t.nonce < nonce {
-			return shim.Error("double spent")
-		}
-		t.nonce += 1
+		//if t.nonce < nonce {
+		//	return shim.Error("double spent")
+		//}
+		t.nonce = nonce + 1
 		result, err = set(stub, args, t.nonce)
 	} else { // assume 'get' even if fn is nil
 

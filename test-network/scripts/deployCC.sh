@@ -246,7 +246,7 @@ chaincodeInvokeInit() {
   # peer (if join was successful), let's supply it directly as we know
   # it using the "-o" option
   set -x
-  fcn_call='{"function":"'${CC_INIT_FCN}'","Args":[]}'
+  fcn_call='{"function":"'${CC_INIT_FCN}'","Args":["userA","100","userB","100"]}'
   infoln "invoke fcn call:${fcn_call}"
   peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile $ORDERER_CA -C $CHANNEL_NAME -n ${CC_NAME} $PEER_CONN_PARMS --isInit -c ${fcn_call} >&log.txt
   res=$?
