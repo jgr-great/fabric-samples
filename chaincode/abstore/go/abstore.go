@@ -48,6 +48,20 @@ func (t *ABstore) Init(ctx contractapi.TransactionContextInterface, A string, Av
 	return nil
 }
 
+func (t *ABstore) AddUser(ctx contractapi.TransactionContextInterface, A string, Aval int) error {
+	fmt.Println("ABstore Init")
+	var err error
+	// Initialize the chaincode
+	fmt.Printf("Aval = %d\n", Aval)
+	// Write the state to the ledger
+	err = ctx.GetStub().PutState(A, []byte(strconv.Itoa(Aval)))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Transaction makes payment of X units from A to B
 func (t *ABstore) Invoke(ctx contractapi.TransactionContextInterface, A, B string, X int) error {
 	var err error
